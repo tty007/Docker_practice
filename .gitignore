@@ -3,3 +3,9 @@
 
 # bundle関連
 ./rails-practice/src/vendor
+
+# DS_Store
+.DS_Store
+
+# gitignore
+.gitignore
