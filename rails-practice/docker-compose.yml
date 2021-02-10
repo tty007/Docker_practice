@@ -1,0 +1,26 @@
+version: '3'
+services:
+  db:
+    image: mysql:8.0
+    # MySQL8.0からはログイン認証方式がcaching_sha2_passwordに
+    # MySQL5と同じログイン認証方式に変更が必要
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - ./src/db/mysql_data:/var/lib/mysql
+    environment: 
+      # mysqlはパスワードを設定していないとエラーになる
+      MYSQL_ROOT_PASSWORD: password
+  web:
+    # imageはカレントディレクトリのDockerfileを参照する
+    build: .
+    command: bundle exec rails s -p 3000 -b '0.0.0.0'
+    volumes:
+      - ./src:/app
+    ports:
+      - "3000:3000"
+    # 依存関係。DBと連携。通常であればDBサービスのIPアドレスを入れる必要があるが、サービス名を入れるだけで連携可能
+    depends_on:
+      - db
+    # pryを使用してデバッグができるよう設定
+    tty: true
+    stdin_open: true
