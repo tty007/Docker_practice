@@ -1,0 +1,5 @@
+# DB関連
+./rails-practice/src/db/mysql_data
+
+# bundle関連
+./rails-practice/src/vendor
