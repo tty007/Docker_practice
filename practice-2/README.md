@@ -85,7 +85,7 @@ end
 
 `bundle exec`とは`Gemfile`を使った処理の時に記述するコマンドで、これで`app.rb`を実行する。
 
-![sinatra-web](./img/sinatra-web.png)
+![sinatra](./img/sinatra.png)
 
 Sinatraサーバーが起動している事が確認できた。
 
