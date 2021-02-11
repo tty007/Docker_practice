@@ -48,7 +48,7 @@ CMD ["/bin/bash"]
 
 `-it`オプションについて：シェルというのはコマンドを打ってレスポンスが返ってくる、いわゆる**インタラクティブ**な操作が必要である。インタラクティブな操作をDockerで行う時は`-it`オプションで明記することが必要である。
 
-![インタラクティブモード](./img/docker-it.png)
+![インタラクティブモード](../img/docker-it.png)
 
 これで`Bash`(Dockerのapp(ルート)ディレクトリ)に入ることが確認できた。次の手順に移る。
 
@@ -85,7 +85,7 @@ end
 
 `bundle exec`とは`Gemfile`を使った処理の時に記述するコマンドで、これで`app.rb`を実行する。
 
-![sinatra](./img/sinatra.png)
+![sinatra](../img/sinatra.png)
 
 Sinatraサーバーが起動している事が確認できた。
 
