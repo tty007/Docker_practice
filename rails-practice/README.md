@@ -11,13 +11,32 @@
 
 ## docker-composeの基本操作
 - イメージのビルド
-`docker-compose build`
+`$ docker-compose build`
 
 - コンテナの作成と起動
-`docker-compose up -d`
+`$ docker-compose up -d`
 
 - コンテナを停止・削除
-`docker-compose down`
+`$ docker-compose down`
+
+## その他docker-composeでよく使うコマンド
+
+- コンテナの一覧を表示
+
+`$ docker-compose ps`
+
+- ログを表示
+
+`$ docker-compose logs`
+
+- コマンド実行用のコマンド
+  - ①コンテナを作成してコマンドを実行する場合
+  `$ docker-compose run [サービス] [コマンド]`
+  
+  1からコンテナを作成してコマンドを行う
+
+  - ②起動中のコンテナに対してコマンドを実行する場合
+  `$ docker-compose exec [サービス] [コマンド]`
 
 
 
