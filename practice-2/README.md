@@ -120,10 +120,3 @@ CMD ["bundle", "exec", "ruby", "app.rb"]
 `$ docker container run -p 4567:4567 --name sinatra -v ${PWD}/src:/app test/sinatra:latest`
 
 同様にサーバーが起動している事が確認できるハズである。
-
-
-
-
-
-
-
