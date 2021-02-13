@@ -179,3 +179,208 @@ Created database 'test_development'
 
 サーバーの停止は`Ctrl+C`でも良いし、別ターミナルを開いて`$ docker-compose down`でも良い。
 
+# 本番環境の構築
+
+以上を以て「開発時の」Docker環境を構築することはできたが、本番環境に利用してこそDockerの利用価値が増大する。
+本番で使わないと、サーバーに対して手動でライブラリを導入する必要がある。かつ、ローカルと差異が起きてエラーが出る可能性がある。
+
+Dockerを導入すると以上のデメリットを解消する事ができる。
+
+## Herokuでコンテナを起動する(事前準備編)
+
+Herokuとはサーバー, DB, ミドルウェア等を提供するPaaSである。
+
+### 事前にgitconfigでやっておいた方がいい事
+`git config --global user.name "[username]"`
+`git config --global user.email "[useremail]"`
+`git config --global merge.ff false`
+`git config --global pull.rebase merges`
+
+### heroku cliのインストール
+heroku-cliをインストールしておく。
+
+### Herokuへ登録
+Herokuへ事前に登録しておく。
+
+## Herokuでコンテナを起動する(Heroku準備編)
+では実際に準備が整ったところで作業へ入る。
+
+`$ heroku login`
+
+でブラウザが立ち上がるため、クリックしてログインを行っておく。
+![Herokuログイン](../img/heroku-login.png)
+
+次に、herokuのコンテナレジストリにログインする。これはDockerのイメージ置き場であり、ログインする事でDockerイメージをアップロードする事ができる。
+
+`$ heroku container:login`
+
+## Herokuでコンテナを起動する(Herokuアプリ作成編)
+`$ heroku create rails-docker-〇〇`
+
+で、Herokuアプリケーションを作成する。○○には何か独自のワードを入れて欲しい。世界中のHerokuアプリの名前と重複しない様に設定する必要がある。
+
+## Herokuでコンテナを起動する(DB追加編)
+Herokuアプリケーションの作成が終わったら次にDBの作成・設定を行う。Herokuではアドオンを追加する形でDB(MySQL)を追加する。`cleardb:ignite`のみ無料で利用できるので、それを利用して構築を行う。ただしこのDBはMySQL5系であり、本来であればローカルを5系に統一するか、アドオンを有料で購入して8系に統一するか、どちらかに合わせる様な設計をするのが望ましい。今回は練習のため、このまま5系のものを利用する。
+
+`$ heroku addons:create cleardb:ignite -a(アプリケーション指定) rails-docker-〇〇`
+
+![Herokuログイン](../img/heroku-logs.png)
+
+これでDBがインストールできた。
+
+### 環境変数を追加する
+`src/config/database.yml`におけるDBの接続先情報の変更を行う。直接接続先を記載するとセキュリティリスクがあるため、実際の情報は環境変数に格納することにする。
+
+```yaml:src/config/database.yml
+# production環境のみ変更する
+production:
+  <<: *default
+  database: <%= ENV['APP_DATABASE'] %>
+  username: <%= ENV['APP_DATABASE_USERNAME'] %>
+  password: <%= ENV['APP_DATABASE_PASSWORD'] %>
+  host: <%= ENV['APP_DATABASE_HOST'] %>
+```
+
+これでHerokuに環境変数を与えるだけでDBに接続できる。`$ heroku config -a [アプケーション名]`で情報を確認できる。
+
+`mysql://[ユーザー名]:[PW]@[ホスト名]/[DB名]`
+
+となっているハズである。
+この情報を接続先情報を環境変数に格納する。
+
+`$ heroku config:add APP_DATABASE='[DB名]' -a [アプリ名]`
+
+`$ heroku config:add APP_DATABASE_USERNAME='[ユーザー名]' -a [アプリ名]`
+
+`$ heroku config:add APP_DATABASE_PASSWORD='[PW]' -a [アプリ名]`
+
+`$ heroku config:add APP_DATABASE_HOST='[ホスト名]'`
+
+以上の設定ができているか確認する方法は、
+`$ heroku config -a [アプリ名(rails-docker-〇〇)]`
+
+これでHeroku上のDBへ接続できるようになった。
+
+## Herokuでコンテナを起動する(Dockerfileを本番用に修正編)
+処理が本番とローカルで若干違う点があるのでそこの処理に対応する様にコードを修正する必要がある。
+
+```Bash:Dockerfile
+FROM ruby:2.7
+
+# 追加
+ENV RAILS_ENV=production
+
+## nodejsとyarnはwebpackをインストールする際に必要
+# yarnパッケージ管理ツールをインストール
+RUN apt-get update && apt-get install -y curl apt-transport-https wget && \
+curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add - && \
+echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list && \
+apt-get update && apt-get install -y yarn
+
+# Node.jsをインストール
+RUN curl -sL https://deb.nodesource.com/setup_7.x | bash - && \
+apt-get install nodejs
+
+WORKDIR /app
+COPY ./src /app
+RUN bundle config --local set path 'vendor/bundle' \
+  && bundle install
+
+COPY starat.sh /start.sh
+# 実行権限の付与
+RUN chmod 744 /start.sh
+CMD ["sh", /start.sh]
+```
+
+ルートディレクトリに`start.sh`を作成し、以下の様に記述。
+```Bash:start.sh
+#!/bin/sh
+
+if [ "${RAILS_ENV}" = "production" ]
+then
+  bundle exec rails precompile
+fi
+
+# 環境変数PORTに番号が入っていればそれを使い、そうでなければ3000を利用する
+bundle exec rails s -p ${PORT:-3000} -b 0.0.0.0
+```
+
+まず、shファイルを作る理由としてはDockerfile上で`if`分岐がやりにくいため、わざわざシェルスクリプトを作成して分岐を行う様設定している。本番環境でのみ発動するコマンドをここに記載する。Railsは本番環境でJSやCSSをまとめてコンパイルするprecompileを行う必要があり、その動作を実現するために上記の様なファイル構成・書き方となっている。`#!/bin/sh`はシェルスクリプトに書くおまじないの様なものである。
+
+Herokuでassets:precompileが起動するために必要なコマンドも別途打っておく。
+
+`$ heroku config:add RAILS_SERVE_STATIC_FILES="true" -a [アプリケーション名]`
+
+### Herokuのタイムアウト設定を変更しておく
+デフォルトのポートバインド秒数は60sであるが、タイムアウトになる事が多々あるためこの秒数を伸ばしておく。
+[Timeout設定のページ](https://tools.heroku.support/limits/boot_timeout)へ行き、60s→120sへ変更する
+
+![Herokuタイムアウト設定](../img/heroku-timeout.png)
+
+### Herokuでコンテナを起動する前にローカルのサーバーを一旦リセットしておく
+Herokuでコンテナ(サーバー)を起動する際、ローカルでサーバーを起動しているとコンフリクトを起こしてエラーが出る場合が存在する。そのため。一旦全てのローカルサーバーをリセットしておく必要がある。
+
+`$ docker-compose down`
+
+もしくは、
+
+`$ rm src/tmp/pids/server.pid`
+
+でサーバー起動をクリーンにしておこう。ここまできたらリリース準備が完了である。
+
+## Herokuでコンテナを起動する(Dockeイメージをビルドしてリリース)
+流れとしてはDockerイメージをビルドして、それをHeroku上にPushするという流れである。
+
+`$ heroku container:push web -a [アプリケーション名]`
+
+これでDockerイメージをビルドして、コンテナレジストリにそれをPushすることができる。
+
+次に、アップロードしたイメージから、Heroku上へコンテナを展開(リリース)する。
+
+`$ heroku container:release web -a [アプリケーション名]`
+
+これで実際にHeroku上にコンテナをリリースする事ができる。
+
+### 補足：Heroku上でDBの更新がしたい時
+`$ heroku run bundle exec rake db:migrate RAAILS_ENV=production -a [アプリケーション名]`
+
+これでRailsアプリをマイグレーションする事ができる。
+
+ここまできたら、Heroku上でアプリが確認できるハズである。
+
+`$ heroku open`
+
+これでアプリを起動できる。`The page does not exist`とでたらOKである。現時点でpageが作られてないが、Railsはデプロイされている証である。
+
+## Herokuでエラー解析を行う時
+以下の設定をしておくとさらに詳細なログが見れる。
+`$ heroku config:add RAILS_LOG_TO_STDOUT='true' -a [アプリケーション名]`
+
+`$ heroku logs -t -a [アプリケーション名]`
+で、ログを確認可能。
+
+## トップページを追加して確認してみる
+Heroku上でトップページが確認できる様に、トップページを追加してみるところまでやってみる。
+
+`$ docker-compose exec web bundle exec rails g controller users`
+
+```ruby:config/routes.rb
+get '/', to: 'users/index' #<<追加する
+```
+
+```ruby:src/app/controller/users_controller.rb
+# indexアクションを追加
+def index
+end
+```
+
+```ruby:src/app/views/users/index.html.erb
+<h1>Hello, World!</h1>
+```
+
+ローカルホストでトップページが確認できたらHerokuへ反映していく。
+サーバーを念の為再度終了させておく事。
+
+イメージをプッシュ>イメージをリリース>open
+
+これでHerokuのトップページ上に「Hello, World!」が表示されたハズである。
