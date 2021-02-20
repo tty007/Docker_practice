@@ -136,7 +136,7 @@ default: &default
   pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
   username: root
   # パスワードは設定した通りに
-  password: passowrd
+  password: password
   # ホストはdb(DBのアプリケーション名)へ変更
   host: db
   timeout: 5000
